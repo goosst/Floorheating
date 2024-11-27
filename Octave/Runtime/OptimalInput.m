@@ -10,8 +10,8 @@ valvesetpoints = MX.sym('valvesetpoints',predictionhorizon+1,1);
 
 % direct single shooting method
 initstate=state;
-penalty_watertemp=10^(-4);
-penalty_valve=0;
+penalty_watertemp=10^(-3);
+penalty_valve=10^(-3);
 penalty_changewater=10^(-4);
 penalty_changevalve=0%10^(-4);
 %keyboard
@@ -206,10 +206,14 @@ ubg = {ubg{:}, zeros(size(constraint_binary))};
 
 for k = 1:predictionhorizon+1
     % 1. If valve is zero, watersetpoint must be zero
-    M = 40;  % A sufficiently large number
-    constraints = {constraints{:},M * valvesetpoints(k)-watersetpoints(k)};
+    M = 50;  % A sufficiently large number
+    constraints = {constraints{:},M * valvesetpoints(k) - watersetpoints(k)};
     lbg = {lbg{:}, 0};
     ubg = {ubg{:}, Inf};
+
+%    constraints = {constraints{:},(watersetpoints(k)>5)*(valvesetpoints(k)<0.1)};
+%    lbg = {lbg{:}, 0};
+%    ubg = {ubg{:}, 0};
 end
 
 %keyboard
@@ -247,7 +251,7 @@ opts.ipopt.print_level = 8;
 
 solver = nlpsol('solver', 'ipopt', nlp);
 
-keyboard
+%keyboard
 
 % Initial guess
 watersetpoints_init = 20 * ones(predictionhorizon+1, 1);

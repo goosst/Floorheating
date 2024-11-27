@@ -69,7 +69,7 @@ while true
   tempsetp_living=most_recent_states.(fieldnames(entity_data){4});
   model_params=[mCfloor;mCair;hair;hisol;kwfl];% set observer gains to zero
 
-  tempsetp_living=15;
+  tempsetp_living=19;
   setpoint=OptimalInput(ode_noobs,intg_noobs,model_params,state,outdoortemp,tempsetp_living,predictionhorizon,simulationhorizon);
 
   entity_id='sensor.MPCwaterreq';
