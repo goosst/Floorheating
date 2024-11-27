@@ -1,5 +1,10 @@
 function [ode,intg,ode1,intg1]=plantModelDefinition(Ts)
 
+
+  function y = sigmoid(x)
+    y=1/(1+exp(-6*(x-5)));
+  end
+
 % Add states
 tfloor = MX.sym('tfloor');
 tair = MX.sym('tair');
@@ -9,7 +14,9 @@ states = [tfloor;tair]; n_states = length(states);
 twatersetp = MX.sym('twatersetp');
 toutside = MX.sym('toutside');
 tairmeas = MX.sym('tairmeas');
-controls = [twatersetp;toutside;tairmeas]; n_controls = length(controls);
+valve = MX.sym('valve');
+
+controls = [twatersetp;toutside;tairmeas;valve]; n_controls = length(controls);
 
 % parameters
 mCfloor = MX.sym('mCfloor');
@@ -26,8 +33,12 @@ params=[params;L1;L2];
 
 %reason for sigmoid function: 1/(1+exp(-6*(twatersetp-5))) if you ask for a very low watersetpoint it will consider it as zero; this makes life easier for the optimzier
 
-rhs=[(1/(1+exp(-6*(twatersetp-5)))*kwfl*twatersetp+L1*mCfloor*tairmeas+(-1/(1+exp(-6*(twatersetp-5)))*kwfl-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
+%rhs=[(1/(1+exp(-6*(twatersetp-5)))*kwfl*valve*twatersetp+L1*mCfloor*tairmeas+(-1/(1+exp(-6*(twatersetp-5)))*kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
+%(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
+
+rhs=[(sigmoid(twatersetp)*kwfl*valve*twatersetp+L1*mCfloor*tairmeas-(sigmoid(twatersetp)*kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
 (hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
+
 
 % casadi stuff
 ode = struct;
@@ -44,7 +55,8 @@ intg = integrator('intg','cvodes',ode,0,Ts); %integrator function, integrate ove
 % control inputs, measurement added for observer
 twatersetp = MX.sym('twatersetp');
 toutside = MX.sym('toutside');
-controls = [twatersetp;toutside]; n_controls = length(controls);
+valve = MX.sym('valve');
+controls = [twatersetp;toutside;valve]; n_controls = length(controls);
 
 % parameters
 mCfloor = MX.sym('mCfloor');
@@ -54,10 +66,13 @@ hisol= MX.sym('hisol');
 kwfl= MX.sym('kwfl');
 params=[mCfloor;mCair;hair;hisol;kwfl];
 
-rhs=[(1/(1+exp(-6*(twatersetp-5)))*kwfl*twatersetp+L1*mCfloor*tairmeas+(-1/(1+exp(-6*(twatersetp-5)))*kwfl-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
-(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
+%rhs=[(1/(1+exp(-6*(twatersetp-5)))*kwfl*twatersetp+L1*mCfloor*tairmeas+(-1/(1+exp(-6*(twatersetp-5)))*kwfl-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
+%(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
 
-rhs = [1/mCfloor*(1/(1+exp(-6*(twatersetp-1.5)))*kwfl*(twatersetp-tfloor)+hair*(tair-tfloor));...
+%rhs = [1/mCfloor*(sigmoid(twatersetp)*kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
+%       1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
+
+       rhs = [1/mCfloor*(kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
        1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
 
 % casadi stuff
