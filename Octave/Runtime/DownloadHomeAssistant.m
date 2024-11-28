@@ -49,7 +49,6 @@ full_url = [base_url, encoded_start_time,"?end_time=", encoded_end_time, "&filte
 options = weboptions('HeaderFields',{'Authorization' ['Bearer ' auth_token]});
 data = webread(full_url, options);
 data = jsondecode (data);
-% keyboard
 
 % Initialize a container for results
 entity_data = struct(); % To store data for each entity_id
@@ -106,42 +105,18 @@ end
 entity_ids = fieldnames(entity_data);
 for i = 1:numel(entity_ids)
     entity_id = entity_ids{i};
-%    keyboard
     data_array = entity_data.(entity_id); % Extract time-state pairs
     % Get the last entry (most recent)
-    most_recent_states.(entity_id) = str2num(cell2mat(data_array(end, 2)));
-%    keyboard
+    data_reformat=cell2mat(data_array(end, 2));
+    if strcmp(data_reformat,'on')
+      most_recent_states.(entity_id) = 1;
+    elseif strcmp(data_reformat,'off')
+      most_recent_states.(entity_id) = 0;
+    else
+      most_recent_states.(entity_id) = str2num(data_reformat);
+    end
+
 end
-
-%
-%% Loop through each set of data
-%for i = 1:numel(data)
-%    for j = 1:numel(data{i})
-%        item = data{i}{j};
-%
-%        % Extract entity_id, if it exists
-%        if isfield(item, 'entity_id')
-%            entity_id = item.entity_id;
-%        else
-%            continue; % Skip if entity_id is missing
-%        end
-%
-%        % Extract state and last_changed
-%        if isfield(item, 'state') && isfield(item, 'last_changed')
-%            state = item.state;
-%            time = item.last_changed;
-%
-%            % Append data to the corresponding entity_id
-%            if ~isfield(entity_data, entity_id)
-%                entity_data.(entity_id) = []; % Initialize if not already exists
-%            end
-%
-%            entity_data.(entity_id) = [entity_data.(entity_id); {time, state}];
-%        end
-%    end
-%end
-%keyboard
-
 
 
 end

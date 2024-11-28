@@ -13,7 +13,7 @@ initstate=state;
 penalty_watertemp=10^(-3);
 penalty_valve=10^(-3);
 penalty_changewater=10^(-4);
-penalty_changevalve=0%10^(-4);
+penalty_changevalve=10^(-4);
 %keyboard
 
 
@@ -98,10 +98,8 @@ if strcmp(selected_method,'single_shooting')
 
   % Extract optimized control inputs
   %optimized_watersetpoints = full(solution.x);
-  setpoint=optimized_watersetpoints(1);
-
-
-
+  setpoint.watersetp=optimized_watersetpoints(1);
+  setpoint.valvesetp=optimized_valvesetpoints(1);
 
 
 
@@ -192,41 +190,18 @@ lbw = [lb_watersetpoints; lb_valvesetpoints; lb_tfloor; lb_tair];
 ubw = [ub_watersetpoints; ub_valvesetpoints; ub_tfloor; ub_tair];
 
 %% Binary valve constraints
-constraint_binary = valvesetpoints.*(valvesetpoints-1); % valve can only be open or closed, other option is to use some mixed integer solvers
+constraint_binary = valvesetpoints.*(valvesetpoints-1); % valve can only be open or closed, other option is to use some mixed integer solver
 constraints = {constraints{:}, constraint_binary};
 lbg = {lbg{:}, zeros(size(constraint_binary))};
 ubg = {ubg{:}, zeros(size(constraint_binary))};
 
-% force valve closed
-%M=40;
-%constraints = {constraints{:}, watersetpoints};
-%lbg = {lbg{:}, 0};
-%ubg = {ubg{:}, M * valvesetpoints};
-
-
 for k = 1:predictionhorizon+1
-    % 1. If valve is zero, watersetpoint must be zero
+    % If valve is 0, watersetpoint must be zero
     M = 50;  % A sufficiently large number
     constraints = {constraints{:},M * valvesetpoints(k) - watersetpoints(k)};
     lbg = {lbg{:}, 0};
     ubg = {ubg{:}, Inf};
-
-%    constraints = {constraints{:},(watersetpoints(k)>5)*(valvesetpoints(k)<0.1)};
-%    lbg = {lbg{:}, 0};
-%    ubg = {ubg{:}, 0};
 end
-
-%keyboard
-%water_temp_threshold=3;
-%for k = 1:predictionhorizon+1
-%    % Create indicator functions
-%    cold_water_constraint = valvesetpoints(k) * (watersetpoints(k) <= water_temp_threshold);
-%    hot_water_constraint = (1 - valvesetpoints(k)) * (watersetpoints(k) > water_temp_threshold);
-%    constraints = {constraints{:}, cold_water_constraint, hot_water_constraint};
-%    lbg = {lbg{:}, 0, 0};
-%    ubg = {ubg{:}, 0, 0};
-%end
-
 
 % Convert constraint cell arrays to vectors
 constraints_vec = vertcat(constraints{:});
@@ -243,7 +218,7 @@ opts.ipopt.print_level = 8;
 %opts.ipopt.tol = 1e-10;  % Tighter convergence tolerance
 
 %opts.ipopt.mu_strategy = 'adaptive';  % More robust barrier parameter strategy
-%opts.ipopt.max_iter = 500;  % Increased iteration limit
+%opts.ipopt.max_iter = 500;  % iteration limit
 %opts.ipopt.constr_viol_tol = 1e-6;  % More strict constraint violation tolerance
 %opts.ipopt.least_square_init_primal ='yes'% or no
 %opts.ipopt.accept_every_trial_step='yes'
@@ -273,14 +248,18 @@ optimized_valvesetpoints = sol_w(predictionhorizon+2:2*(predictionhorizon+1));
 optimized_tfloor = sol_w(2*(predictionhorizon+1)+1:3*(predictionhorizon+1));
 optimized_tair = sol_w(3*(predictionhorizon+1)+1:end);
 
-end
 
-% try to formulate as
+% return values of function
+setpoint={};
+setpoint.watersetp=optimized_watersetpoints(1);
+setpoint.valvesetp=optimized_valvesetpoints(1);
+
+end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % check outputs / debugging
-%keyboard
+if false
 
 figure(1)
 hold on
@@ -349,5 +328,5 @@ legend
 grid
 
 keyboard
-
+end
 end

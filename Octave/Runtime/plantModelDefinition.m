@@ -39,7 +39,6 @@ params=[params;L1;L2];
 rhs=[(sigmoid(twatersetp)*kwfl*valve*twatersetp+L1*mCfloor*tairmeas-(sigmoid(twatersetp)*kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
 (hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
 
-
 % casadi stuff
 ode = struct;
 ode.x=states;
