@@ -1,5 +1,13 @@
 function [ode,intg,ode1,intg1]=plantModelDefinition(Ts)
 
+function out = merge_structs(s1, s2)
+    out = s1;
+    fields = fieldnames(s2);
+    for i = 1:length(fields)
+        out.(fields{i}) = s2.(fields{i});
+    end
+end
+
 
   function y = sigmoid(x)
     y=1/(1+exp(-6*(x-5)));
@@ -46,8 +54,13 @@ ode.u=controls;
 ode.ode=rhs;
 ode.p=params;
 
-intg = integrator('intg','cvodes',ode,0,Ts); %integrator function, integrate over 1 sample
+%intg = integrator('intg','rk',ode,0,Ts); %integrator function, integrate over 1 sample
+%keyboard
 
+opts = struct('simplify', true); % codegeneration stuff
+integrator_opts = struct('tf', Ts);  % tf option
+merged_opts = merge_structs(integrator_opts, opts);
+intg = integrator('intg', 'rk', ode, merged_opts);
 
 %%%%%%%%%%%%%%%%%%%% model without observer
 
@@ -71,8 +84,8 @@ params=[mCfloor;mCair;hair;hisol;kwfl];
 %rhs = [1/mCfloor*(sigmoid(twatersetp)*kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
 %       1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
 
-       rhs = [1/mCfloor*(kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
-       1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
+rhs = [1/mCfloor*(kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
+1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
 
 % casadi stuff
 ode1 = struct;
@@ -81,6 +94,27 @@ ode1.u=controls;
 ode1.ode=rhs;
 ode1.p=params;
 
-intg1 = integrator('intg1','cvodes',ode1,0,Ts); %integrator function, integrate over 1 sample
+%intg1 = integrator('intg1','cvodes',ode1,0,Ts); %integrator function, integrate over 1 sample
 
+opts = struct('simplify', true); % codegeneration stuff
+integrator_opts = struct('tf', Ts);  % tf option
+merged_opts = merge_structs(integrator_opts, opts);
+intg1 = integrator('intg1', 'rk', ode1, merged_opts);
+
+
+    % Define RK4 integrator function
+%    M=4;
+%    X0 = MX.sym('X0', 2);
+%    U = MX.sym('U', 3);
+%    P = MX.sym('P', 5); % Parameters
+%    X = X0;
+%    DT = Ts / M;
+%    for j = 1:M
+%        k1 = substitute(ode1.ode, [ode1.x; ode1.u; ode1.p], [X; U; P]);
+%        k2 = substitute(ode1.ode, [ode1.x; ode1.u; ode1.p], [X + DT/2 * k1; U; P]);
+%        k3 = substitute(ode1.ode, [ode1.x; ode1.u; ode1.p], [X + DT/2 * k2; U; P]);
+%        k4 = substitute(ode1.ode, [ode1.x; ode1.u; ode1.p], [X + DT * k3; U; P]);
+%        X = X + DT/6 * (k1 + 2*k2 + 2*k3 + k4);
+%    end
+%    intg = Function('intg', {'x0', 'u', 'p'}, {X}, {'x0', 'u', 'p'}, {'xf'});
 end

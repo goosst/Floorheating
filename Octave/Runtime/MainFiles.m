@@ -3,13 +3,16 @@ clear variables
 close all
 dbstop if error
 
+execute_compiledprogram=true;
 
-addpath('/home/stijn/Projects/Casadi/casadi-3.6.7-linux64-octave7.3.0')
-import casadi.*
-
-Secrets
+if ~execute_compiledprogram
+  % casadi should not be a dependency if c-code / compiled c-code is used
+  addpath('/home/stijn/Projects/Casadi/casadi-3.6.7-linux64-octave7.3.0')
+  import casadi.*
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Secrets %import passwords for home assistant etc.
 % general parameters
 Ts=5*60; %sample time in seconds
 address_hass='192.168.0.205:8123';
@@ -33,7 +36,7 @@ model_params_noobs=[mCfloor;mCair;hair;hisol;kwfl];% model without observer
 
 
 predictionhorizon=ceil(4*3600/Ts);
-simulationhorizon=ceil(2*3600/Ts); %additional simulation time after prediction
+simulationhorizon=ceil(1*3600/Ts); %additional simulation time after prediction
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% update model,
@@ -45,7 +48,7 @@ k=0;
 
 while true
 
-  % a crappy time scheduler, don't if octave has better options
+  % a crappy time scheduler, don't know if octave has better options
   pause(1);
   currenttime = time();
    if (currenttime-starttime>=Ts || firstrun)
@@ -68,7 +71,6 @@ while true
 
 
   if(firstrun)
-
     %% initialize states of model, something more fancy could be made for floortemperature
     state=[roomairtemp;roomairtemp]; %[tfloor,tair]
     firstrun=false;
@@ -76,22 +78,55 @@ while true
 
   %model update including observer correction;
   controlinputs=[watertempsetp;outdoortemp;roomairtemp;valve_living];
-  state=SimulateModel(ode,intg,model_params,controlinputs,state);
 
+if (~execute_compiledprogram)
+  state=SimulateModel(ode,intg,model_params,controlinputs,state);
+else
+  % code is generated in SimulateModel
+    % Prepare the input as a string
+  input_string = sprintf('%f\n', [state;model_params;controlinputs]);
+  % Use pipes to pass input
+  command = sprintf('echo "%s" | ./integrator_c_code intg', input_string);
+  [status,output]=system(command);
+  values = str2num(output);
+
+  state(1)=values(1)
+  state(2)=values(2)
+
+end
 
   % predict and optimize
-%  tempsetp_living=21;
+  tempsetp_living=16.1;
+
+if (~execute_compiledprogram)
+  %run casadi
   setpoint=OptimalInput(ode_noobs,intg_noobs,model_params_noobs,state,outdoortemp,tempsetp_living,predictionhorizon,simulationhorizon);
+else
+  % code is generated in optimalinput
+  %execute compiled code, model parameters and optimization settings were compiled in c-code
+  % Prepare the input as a string
+  input_string = sprintf('%f\n%f\n%f\n%f\n', state(1), state(2),outdoortemp,tempsetp_living);
+  % Use pipes to pass input
+  command = sprintf('echo "%s" | ./optimal_control optimal_control', input_string);
+  [status, output] = system(command);
+  values = str2num(output);
+
+  setpoint.watersetp=values(1)
+  setpoint.valvesetp=values(2)
+
+%  keyboard
+end
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % apply setpoints
   entity_id='sensor.MPCwatersetp';
   PostHomeAssistant(address_hass,auth_token,entity_id,setpoint.watersetp);
 
-  entity_id='switch.collector';
-%  entity_id='switch.collector_3';
+%  entity_id='switch.collector';
+  entity_id='sensor.collectorMPC';
   PostHomeAssistant(address_hass,auth_token,entity_id,setpoint.valvesetp);
 
+%  keyboard
 
   if (k>4)
 
@@ -102,3 +137,6 @@ while true
 end
 
 end
+
+
+

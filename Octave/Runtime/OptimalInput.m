@@ -1,8 +1,10 @@
 function setpoint=OptimalInput(ode,intg,model_params,state,outdoortemp,setpoint,predictionhorizon,simulationhorizon)
 
+codegeneration=true;
 % select optimization method
 %selected_method='single_shooting';
-selected_method='multiple_shooting';
+%selected_method='multiple_shooting';
+selected_method='multiple_shooting_opticlass';
 
 % Control vector to be optimized
 watersetpoints = MX.sym('watersetpoints',predictionhorizon+1,1);
@@ -21,90 +23,85 @@ penalty_changevalve=10^(-4);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if strcmp(selected_method,'single_shooting')
-  % Create the cost function
-  J = 0;
-  % Loop through each time step, propagate dynamics, and accumulate error
-  for k = 1:predictionhorizon
-
-      % Simulate the next state
-      result = intg('x0', state, 'u',[watersetpoints(k);outdoortemp;valvesetpoints(k)],'p', model_params); %third control input, measued air temp is irrelevant here
-      state = result.xf;
-
-      % Get predicted `tair` and accumulate squared error
-      predicted_tair = state(2); % tair state
-      predicted_tfloor=state(1); %tfloor state
-      J = J + (predicted_tair - setpoint)^2+...
-      penalty_watertemp*watersetpoints(k)+...
-      penalty_valve*valvesetpoints(k); %evaluate cost function of this state + some penalty to minimze inputs (reduce energy consumption)
-
-  end
-
-  watersetpoint_final=watersetpoints(predictionhorizon+1);
-  valvesetpoint_final=valvesetpoints(predictionhorizon+1);
-  for k=1:simulationhorizon
-      % just keep setpoint constant after prediction
-      % Simulate the next state
-      result = intg('x0', state, 'u',[watersetpoint_final;outdoortemp;valvesetpoint_final],'p', model_params); %third control input, measued air temp is irrelevant here
-      state = result.xf;
-
-      % Get predicted `tair` and accumulate squared error
-      predicted_tair = state(2); % tair state
-      predicted_tfloor=state(1); %tfloor state
-      J = J + (predicted_tair - setpoint)^2+...
-      penalty_watertemp*watersetpoint_final+...
-      penalty_valve*valvesetpoint_final; %evaluate cost function of this state + some penalty to minimze inputs (reduce energy consumption)
-
-  end
-
-
-
-  % Bounds for control inputs, inherently the model is defined if you ask for a very low watersetpoint it will consider it as zero
-  lb_watersetpoints = 0 * ones(predictionhorizon+1, 1); % Lower bound
-  ub_watersetpoints = 35 * ones(predictionhorizon+1, 1); % Upper bound
-
-  lb_valvesetpoints = zeros(size(valvesetpoints));
-  ub_valvesetpoints= ones(size(valvesetpoints));
-
-  lb_controls=[lb_watersetpoints;lb_valvesetpoints];
-  ub_controls=[ub_watersetpoints;ub_valvesetpoints];
-
-  % Constraints
-  constraint_binary=valvesetpoints.*(valvesetpoints-1);
-  ubg_binary=zeros(size(constraint_binary)); %setting upper and lower boundary to zero --> equality constraint
-  lbg_binary=zeros(size(constraint_binary));
-
-  constraint_valveopen=valvesetpoints-(watersetpoints>2);
-  ubg_valveopen=inf*ones(size(constraint_valveopen));
-  lbg_valveopen=zeros(size(constraint_valveopen));
-
-  constraints=[constraint_binary;constraint_valveopen];
-  lbg=[lbg_binary;lbg_valveopen];
-  ubg=[ubg_binary;ubg_valveopen];
-
-
- % NLP problem setup
-  nlp = struct('x', [watersetpoints;valvesetpoints], 'f', J,'g',constraints); % Decision variables and cost
-  solver = nlpsol('solver', 'ipopt', nlp);
-
-  % Solve the problem
-  watersetpoints_init = 20 * ones(predictionhorizon+1, 1); % Initial guess
-  valvesetpoints_init=ones(predictionhorizon+1,1);
-  solution = solver('x0', [watersetpoints_init;valvesetpoints_init], 'lbx', lb_controls, 'ubx', ub_controls,'lbg',lbg,'ubg',ubg);
-
-  optimized_watersetpoints=full(solution.x(1:predictionhorizon+1));
-  optimized_valvesetpoints=full(solution.x(predictionhorizon+2:end));
-  %keyboard
-
-  % Extract optimized control inputs
-  %optimized_watersetpoints = full(solution.x);
-  setpoint.watersetp=optimized_watersetpoints(1);
-  setpoint.valvesetp=optimized_valvesetpoints(1);
-
-
-
-
-
+%if strcmp(selected_method,'single_shooting')
+%  % Create the cost function
+%  J = 0;
+%  % Loop through each time step, propagate dynamics, and accumulate error
+%  for k = 1:predictionhorizon
+%
+%      % Simulate the next state
+%      result = intg('x0', state, 'u',[watersetpoints(k);outdoortemp;valvesetpoints(k)],'p', model_params); %third control input, measued air temp is irrelevant here
+%      state = result.xf;
+%
+%      % Get predicted `tair` and accumulate squared error
+%      predicted_tair = state(2); % tair state
+%      predicted_tfloor=state(1); %tfloor state
+%      J = J + (predicted_tair - setpoint)^2+...
+%      penalty_watertemp*watersetpoints(k)+...
+%      penalty_valve*valvesetpoints(k); %evaluate cost function of this state + some penalty to minimze inputs (reduce energy consumption)
+%
+%  end
+%
+%  watersetpoint_final=watersetpoints(predictionhorizon+1);
+%  valvesetpoint_final=valvesetpoints(predictionhorizon+1);
+%  for k=1:simulationhorizon
+%      % just keep setpoint constant after prediction
+%      % Simulate the next state
+%      result = intg('x0', state, 'u',[watersetpoint_final;outdoortemp;valvesetpoint_final],'p', model_params); %third control input, measued air temp is irrelevant here
+%      state = result.xf;
+%
+%      % Get predicted `tair` and accumulate squared error
+%      predicted_tair = state(2); % tair state
+%      predicted_tfloor=state(1); %tfloor state
+%      J = J + (predicted_tair - setpoint)^2+...
+%      penalty_watertemp*watersetpoint_final+...
+%      penalty_valve*valvesetpoint_final; %evaluate cost function of this state + some penalty to minimze inputs (reduce energy consumption)
+%
+%  end
+%
+%
+%
+%  % Bounds for control inputs, inherently the model is defined if you ask for a very low watersetpoint it will consider it as zero
+%  lb_watersetpoints = 0 * ones(predictionhorizon+1, 1); % Lower bound
+%  ub_watersetpoints = 35 * ones(predictionhorizon+1, 1); % Upper bound
+%
+%  lb_valvesetpoints = zeros(size(valvesetpoints));
+%  ub_valvesetpoints= ones(size(valvesetpoints));
+%
+%  lb_controls=[lb_watersetpoints;lb_valvesetpoints];
+%  ub_controls=[ub_watersetpoints;ub_valvesetpoints];
+%
+%  % Constraints
+%  constraint_binary=valvesetpoints.*(valvesetpoints-1);
+%  ubg_binary=zeros(size(constraint_binary)); %setting upper and lower boundary to zero --> equality constraint
+%  lbg_binary=zeros(size(constraint_binary));
+%
+%  constraint_valveopen=valvesetpoints-(watersetpoints>2);
+%  ubg_valveopen=inf*ones(size(constraint_valveopen));
+%  lbg_valveopen=zeros(size(constraint_valveopen));
+%
+%  constraints=[constraint_binary;constraint_valveopen];
+%  lbg=[lbg_binary;lbg_valveopen];
+%  ubg=[ubg_binary;ubg_valveopen];
+%
+%
+% % NLP problem setup
+%  nlp = struct('x', [watersetpoints;valvesetpoints], 'f', J,'g',constraints); % Decision variables and cost
+%  solver = nlpsol('solver', 'ipopt', nlp);
+%
+%  % Solve the problem
+%  watersetpoints_init = 20 * ones(predictionhorizon+1, 1); % Initial guess
+%  valvesetpoints_init=ones(predictionhorizon+1,1);
+%  solution = solver('x0', [watersetpoints_init;valvesetpoints_init], 'lbx', lb_controls, 'ubx', ub_controls,'lbg',lbg,'ubg',ubg);
+%
+%  optimized_watersetpoints=full(solution.x(1:predictionhorizon+1));
+%  optimized_valvesetpoints=full(solution.x(predictionhorizon+2:end));
+%  %keyboard
+%
+%  % Extract optimized control inputs
+%  %optimized_watersetpoints = full(solution.x);
+%  setpoint.watersetp=optimized_watersetpoints(1);
+%  setpoint.valvesetp=optimized_valvesetpoints(1);
 
 
 
@@ -112,7 +109,7 @@ if strcmp(selected_method,'single_shooting')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-elseif strcmp(selected_method,'multiple_shooting')
+if strcmp(selected_method,'multiple_shooting')
 
 
 % Control vector to be optimized
@@ -225,6 +222,9 @@ opts.ipopt.print_level = 8;
 %opts.ipopt.linear_solver='ma27'
 
 solver = nlpsol('solver', 'ipopt', nlp);
+%solver = nlpsol('solver', 'fatrop', nlp);
+%solver = nlpsol('solver', 'alpaqa', nlp);
+
 
 %keyboard
 
@@ -254,8 +254,274 @@ setpoint={};
 setpoint.watersetp=optimized_watersetpoints(1);
 setpoint.valvesetp=optimized_valvesetpoints(1);
 
+
 end
 
+
+
+if strcmp(selected_method,'multiple_shooting_opticlass')
+
+  % Create Opti instance
+    opti = Opti();
+
+    % Decision variables
+    watersetpoints = opti.variable(predictionhorizon + 1, 1);
+    valvesetpoints = opti.variable(predictionhorizon + 1, 1);
+    states_tfloor = opti.variable(predictionhorizon + 1, 1);
+    states_tair = opti.variable(predictionhorizon + 1, 1);
+
+    % Initialize cost
+    J = 0;
+
+    % Initial state constraint
+    opti.subject_to(states_tfloor(1) == state(1));
+    opti.subject_to(states_tair(1) == state(2));
+
+    % Loop through prediction horizon
+    for k = 1:predictionhorizon
+        current_state = [states_tfloor(k); states_tair(k)];
+
+        % Simulate the next state
+        result = intg('x0', current_state, 'u', [watersetpoints(k); outdoortemp; valvesetpoints(k)], 'p', model_params);
+        next_state = result.xf;
+
+        % Continuity constraints
+        opti.subject_to(states_tfloor(k + 1) == next_state(1));
+        opti.subject_to(states_tair(k + 1) == next_state(2));
+
+        % Accumulate cost
+        J = J + (states_tair(k) - setpoint)^2 + ...
+            penalty_watertemp * watersetpoints(k) + ...
+            penalty_valve * valvesetpoints(k) * watersetpoints(k) + ...
+            penalty_changewater * (watersetpoints(k) - watersetpoints(k + 1))^2 + ...
+            penalty_changevalve * (valvesetpoints(k) - valvesetpoints(k + 1))^2;
+    end
+
+    % Handle simulation horizon with final control inputs
+    watersetpoint_final = watersetpoints(end);
+    valvesetpoint_final = valvesetpoints(end);
+    current_state = [states_tfloor(end); states_tair(end)];
+
+    for k = 1:simulationhorizon
+        result = intg('x0', current_state, 'u', [watersetpoint_final; outdoortemp; valvesetpoint_final], 'p', model_params);
+        current_state = result.xf;
+
+        J = J + (current_state(2) - setpoint)^2 + ...
+            penalty_watertemp * watersetpoint_final + ...
+            penalty_valve * valvesetpoint_final;
+    end
+
+    % Add bounds for control inputs
+    opti.subject_to(0 <= watersetpoints <= 35);
+    opti.subject_to(0 <= valvesetpoints <= 1);
+
+    % Add state bounds
+    opti.subject_to(0 <= states_tfloor <= 40);
+    opti.subject_to(0 <= states_tair <= 40);
+
+    % Binary valve constraints
+    opti.subject_to(valvesetpoints .* (valvesetpoints - 1) == 0);
+    for k = 1:predictionhorizon + 1
+        opti.subject_to(50 * valvesetpoints(k) >= watersetpoints(k));
+    end
+
+    % Set objective
+    opti.minimize(J);
+
+    % Initial guess
+    opti.set_initial(watersetpoints, 20 * ones(predictionhorizon + 1, 1));
+    opti.set_initial(valvesetpoints, 0.5 * ones(predictionhorizon + 1, 1));
+    opti.set_initial(states_tfloor, 20 * ones(predictionhorizon + 1, 1));
+    opti.set_initial(states_tair, 20 * ones(predictionhorizon + 1, 1));
+
+    % Solver options
+    p_opts.print_time = false;
+    s_opts.print_level = 5;
+    opti.solver('ipopt', p_opts, s_opts);
+
+
+    % Solve the problem
+    solution = opti.solve();
+
+    % Extract solutions
+    optimized_watersetpoints = solution.value(watersetpoints);
+    optimized_valvesetpoints = solution.value(valvesetpoints);
+    optimized_tfloor = solution.value(states_tfloor);
+    optimized_tair = solution.value(states_tair);
+
+    % Return first control inputs
+    setpoint = struct();
+    setpoint.watersetp = optimized_watersetpoints(1);
+    setpoint.valvesetp = optimized_valvesetpoints(1);
+
+keyboard
+
+end
+
+
+
+
+
+if(codegeneration)
+% Create Opti instance
+    opti = Opti();
+
+    % Decision variables
+    watersetpoints = opti.variable(predictionhorizon + 1, 1);
+    valvesetpoints = opti.variable(predictionhorizon + 1, 1);
+    states_tfloor = opti.variable(predictionhorizon + 1, 1);
+    states_tair = opti.variable(predictionhorizon + 1, 1);
+
+    % Parameters to be passed
+    state = opti.parameter(2, 1);
+    outdoortemp = opti.parameter();
+    setpoint = opti.parameter();
+
+    % Initialize cost
+    J = 0;
+
+    % Initial state constraint
+    opti.subject_to(states_tfloor(1) == state(1));
+    opti.subject_to(states_tair(1) == state(2));
+
+    % Loop through prediction horizon
+    for k = 1:predictionhorizon
+        current_state = [states_tfloor(k); states_tair(k)];
+
+        % Integrate to get the next state
+        result = intg('x0', current_state,'u',[watersetpoints(k); outdoortemp; valvesetpoints(k)] ,'p', model_params);
+        next_state = result.xf;
+
+        % Continuity constraints
+        opti.subject_to(states_tfloor(k + 1) == next_state(1));
+        opti.subject_to(states_tair(k + 1) == next_state(2));
+
+        % Accumulate cost
+        J = J + (states_tair(k) - setpoint)^2 + ...
+            penalty_watertemp * watersetpoints(k) + ...
+            penalty_valve * valvesetpoints(k) * watersetpoints(k) + ...
+            penalty_changewater * (watersetpoints(k) - watersetpoints(k + 1))^2 + ...
+            penalty_changevalve * (valvesetpoints(k) - valvesetpoints(k + 1))^2;
+    end
+
+    % Add bounds for control inputs
+    opti.subject_to(0 <= watersetpoints <= 35);
+    opti.subject_to(0 <= valvesetpoints <= 1);
+
+    % Add state bounds
+    opti.subject_to(0 <= states_tfloor <= 40);
+    opti.subject_to(0 <= states_tair <= 40);
+
+    % Binary valve constraints
+    opti.subject_to(valvesetpoints .* (valvesetpoints - 1) == 0);
+    for k = 1:predictionhorizon + 1
+        opti.subject_to(50 * valvesetpoints(k) >= watersetpoints(k));
+    end
+
+    % Set objective
+    opti.minimize(J);
+
+solver_options = struct();
+solver_options.ipopt.print_level = 0;      % Suppress IPOPT console output
+solver_options.ipopt.file_print_level = 0; % Suppress IPOPT file output
+solver_options.ipopt.sb = 'yes';           % suppress banner
+solver_options.print_time = false;         % Suppress CasADi timing information
+opti.solver('ipopt',solver_options);
+
+
+opti.set_initial(watersetpoints, 20 * ones(predictionhorizon + 1, 1));
+opti.set_initial(valvesetpoints, 0.5 * ones(predictionhorizon + 1, 1));
+opti.set_initial(states_tfloor, 20 * ones(predictionhorizon + 1, 1));
+opti.set_initial(states_tair, 20 * ones(predictionhorizon + 1, 1));
+
+% Create CasADi function for C code generation
+c_function = opti.to_function('optimal_control', {state, outdoortemp, setpoint}, {watersetpoints(1), valvesetpoints(1)});
+
+% Set options for C code generation, including main and verbose
+opts = struct();
+opts.main = true;       % Include a main function
+opts.verbose = true;    % Display verbose output during code generation
+opts.with_header=false;
+
+% Generate C code with the specified options
+c_function.generate('optimal_control.c', opts);
+
+% compile c-code
+DIR=GlobalOptions.getCasadiPath();
+str_include = GlobalOptions.getCasadiIncludePath();
+str_compile=strcat('gcc -L',DIR,' -Wl,-rpath,',DIR,' -I',str_include,' optimal_control.c -lm -lipopt -o optimal_control')
+
+keyboard
+
+%str_compile=strcat('gcc -L',DIR,' -I',str_include,' optimal_control.c -lm -lipopt -o optimal_control')
+system(str_compile)
+
+
+
+% test the compiled code
+state_value = [15; 15];  % Example values for state
+outdoortemp_value = 6.0;   % Example value for outdoor temperature
+setpoint_value = 21.0;      % Example value for the setpoint
+
+
+
+% Set parameter values in the Opti instance
+
+opti.set_value(state, state_value);
+opti.set_value(outdoortemp, outdoortemp_value);
+opti.set_value(setpoint, setpoint_value);
+
+solution = opti.solve();
+optimized_watersetpoints = solution.value(watersetpoints);
+optimized_valvesetpoints = solution.value(valvesetpoints);
+optimized_tfloor = solution.value(states_tfloor);
+optimized_tair = solution.value(states_tair);
+
+keyboard
+
+% Prepare the input as a string
+input_string = sprintf('%f\n%f\n%f\n%f\n', state_value(1), state_value(2),outdoortemp_value,setpoint_value);
+
+% Use pipes to pass input
+command = sprintf('echo "%s" | ./optimal_control optimal_control', input_string);
+[status, output] = system(command);
+
+
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+% plot variables
+if true
+figure(1)
+hold on
+hax1=subplot(3,1,1)
+hold on
+plot(optimized_watersetpoints,'*','DisplayName','optimal water setpoint')
+pause(1)
+legend
+grid minor
+
+hax3=subplot(3,1,2)
+hold on
+plot(optimized_tfloor,'*','DisplayName','floor temp prediction')
+pause(1)
+plot(optimized_tair,'*','DisplayName','air temp prediction')
+pause(1)
+legend
+grid minor
+
+hax2=subplot(3,1,3)
+pause(1)
+plot(optimized_valvesetpoints,'*','DisplayName','optimal valve setpoint')
+pause(1)
+legend
+grid minor
+
+linkaxes ([hax1, hax2,hax3],"x");
+
+keyboard
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % check outputs / debugging
