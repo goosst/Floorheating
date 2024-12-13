@@ -1,25 +1,24 @@
 function setpoint=OptimalInput(ode,intg,model_params,state,outdoortemp,setpoint,predictionhorizon,simulationhorizon)
 
-codegeneration=true;
 % select optimization method
 %selected_method='single_shooting';
 %selected_method='multiple_shooting';
 selected_method='multiple_shooting_opticlass';
+codegeneration=true; %only possible when using multiple_shooting_opticlass
 
-% Control vector to be optimized
-watersetpoints = MX.sym('watersetpoints',predictionhorizon+1,1);
-valvesetpoints = MX.sym('valvesetpoints',predictionhorizon+1,1);
 
-% direct single shooting method
-initstate=state;
+% penalty factors cost function
 penalty_watertemp=10^(-3);
 penalty_valve=10^(-3);
 penalty_changewater=10^(-4);
 penalty_changevalve=10^(-4);
-%keyboard
 
 
 
+% Control vector to be optimized
+watersetpoints = MX.sym('watersetpoints',predictionhorizon+1,1);
+valvesetpoints = MX.sym('valvesetpoints',predictionhorizon+1,1);
+initstate=state;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -261,108 +260,6 @@ end
 
 if strcmp(selected_method,'multiple_shooting_opticlass')
 
-  % Create Opti instance
-    opti = Opti();
-
-    % Decision variables
-    watersetpoints = opti.variable(predictionhorizon + 1, 1);
-    valvesetpoints = opti.variable(predictionhorizon + 1, 1);
-    states_tfloor = opti.variable(predictionhorizon + 1, 1);
-    states_tair = opti.variable(predictionhorizon + 1, 1);
-
-    % Initialize cost
-    J = 0;
-
-    % Initial state constraint
-    opti.subject_to(states_tfloor(1) == state(1));
-    opti.subject_to(states_tair(1) == state(2));
-
-    % Loop through prediction horizon
-    for k = 1:predictionhorizon
-        current_state = [states_tfloor(k); states_tair(k)];
-
-        % Simulate the next state
-        result = intg('x0', current_state, 'u', [watersetpoints(k); outdoortemp; valvesetpoints(k)], 'p', model_params);
-        next_state = result.xf;
-
-        % Continuity constraints
-        opti.subject_to(states_tfloor(k + 1) == next_state(1));
-        opti.subject_to(states_tair(k + 1) == next_state(2));
-
-        % Accumulate cost
-        J = J + (states_tair(k) - setpoint)^2 + ...
-            penalty_watertemp * watersetpoints(k) + ...
-            penalty_valve * valvesetpoints(k) * watersetpoints(k) + ...
-            penalty_changewater * (watersetpoints(k) - watersetpoints(k + 1))^2 + ...
-            penalty_changevalve * (valvesetpoints(k) - valvesetpoints(k + 1))^2;
-    end
-
-    % Handle simulation horizon with final control inputs
-    watersetpoint_final = watersetpoints(end);
-    valvesetpoint_final = valvesetpoints(end);
-    current_state = [states_tfloor(end); states_tair(end)];
-
-    for k = 1:simulationhorizon
-        result = intg('x0', current_state, 'u', [watersetpoint_final; outdoortemp; valvesetpoint_final], 'p', model_params);
-        current_state = result.xf;
-
-        J = J + (current_state(2) - setpoint)^2 + ...
-            penalty_watertemp * watersetpoint_final + ...
-            penalty_valve * valvesetpoint_final;
-    end
-
-    % Add bounds for control inputs
-    opti.subject_to(0 <= watersetpoints <= 35);
-    opti.subject_to(0 <= valvesetpoints <= 1);
-
-    % Add state bounds
-    opti.subject_to(0 <= states_tfloor <= 40);
-    opti.subject_to(0 <= states_tair <= 40);
-
-    % Binary valve constraints
-    opti.subject_to(valvesetpoints .* (valvesetpoints - 1) == 0);
-    for k = 1:predictionhorizon + 1
-        opti.subject_to(50 * valvesetpoints(k) >= watersetpoints(k));
-    end
-
-    % Set objective
-    opti.minimize(J);
-
-    % Initial guess
-    opti.set_initial(watersetpoints, 20 * ones(predictionhorizon + 1, 1));
-    opti.set_initial(valvesetpoints, 0.5 * ones(predictionhorizon + 1, 1));
-    opti.set_initial(states_tfloor, 20 * ones(predictionhorizon + 1, 1));
-    opti.set_initial(states_tair, 20 * ones(predictionhorizon + 1, 1));
-
-    % Solver options
-    p_opts.print_time = false;
-    s_opts.print_level = 5;
-    opti.solver('ipopt', p_opts, s_opts);
-
-
-    % Solve the problem
-    solution = opti.solve();
-
-    % Extract solutions
-    optimized_watersetpoints = solution.value(watersetpoints);
-    optimized_valvesetpoints = solution.value(valvesetpoints);
-    optimized_tfloor = solution.value(states_tfloor);
-    optimized_tair = solution.value(states_tair);
-
-    % Return first control inputs
-    setpoint = struct();
-    setpoint.watersetp = optimized_watersetpoints(1);
-    setpoint.valvesetp = optimized_valvesetpoints(1);
-
-keyboard
-
-end
-
-
-
-
-
-if(codegeneration)
 % Create Opti instance
     opti = Opti();
 
@@ -372,37 +269,51 @@ if(codegeneration)
     states_tfloor = opti.variable(predictionhorizon + 1, 1);
     states_tair = opti.variable(predictionhorizon + 1, 1);
 
-    % Parameters to be passed
-    state = opti.parameter(2, 1);
-    outdoortemp = opti.parameter();
-    setpoint = opti.parameter();
+    % Parameters to be passed, defined here to allow c-code generation later
+    state_init = opti.parameter(2, 1);
+    outdoortemp_opti = opti.parameter();
+    setpoint_opti = opti.parameter();
 
     % Initialize cost
     J = 0;
 
     % Initial state constraint
-    opti.subject_to(states_tfloor(1) == state(1));
-    opti.subject_to(states_tair(1) == state(2));
+    opti.subject_to(states_tfloor(1) == state_init(1));
+    opti.subject_to(states_tair(1) == state_init(2));
 
     % Loop through prediction horizon
     for k = 1:predictionhorizon
         current_state = [states_tfloor(k); states_tair(k)];
 
         % Integrate to get the next state
-        result = intg('x0', current_state,'u',[watersetpoints(k); outdoortemp; valvesetpoints(k)] ,'p', model_params);
+        result = intg('x0', current_state,'u',[watersetpoints(k); outdoortemp_opti; valvesetpoints(k)] ,'p', model_params);
         next_state = result.xf;
 
-        % Continuity constraints
+        % Continuity constraints multiple shooting
         opti.subject_to(states_tfloor(k + 1) == next_state(1));
         opti.subject_to(states_tair(k + 1) == next_state(2));
 
         % Accumulate cost
-        J = J + (states_tair(k) - setpoint)^2 + ...
+        J = J + (states_tair(k) - setpoint_opti)^2 + ...
             penalty_watertemp * watersetpoints(k) + ...
             penalty_valve * valvesetpoints(k) * watersetpoints(k) + ...
             penalty_changewater * (watersetpoints(k) - watersetpoints(k + 1))^2 + ...
             penalty_changevalve * (valvesetpoints(k) - valvesetpoints(k + 1))^2;
     end
+
+ %     % Handle simulation horizon with final  constant control inputs
+     watersetpoint_final = watersetpoints(end);
+     valvesetpoint_final = valvesetpoints(end);
+     current_state = [states_tfloor(end); states_tair(end)];
+
+     for k = 1:simulationhorizon
+         result = intg('x0', current_state, 'u', [watersetpoint_final; outdoortemp_opti; valvesetpoint_final], 'p', model_params);
+         current_state = result.xf;
+
+         J = J + (current_state(2) - setpoint)^2 + ...
+             penalty_watertemp * watersetpoint_final + ...
+             penalty_valve * valvesetpoint_final;
+     end
 
     % Add bounds for control inputs
     opti.subject_to(0 <= watersetpoints <= 35);
@@ -412,7 +323,7 @@ if(codegeneration)
     opti.subject_to(0 <= states_tfloor <= 40);
     opti.subject_to(0 <= states_tair <= 40);
 
-    % Binary valve constraints
+    % Binary valve constraints, valve can only be open or closed
     opti.subject_to(valvesetpoints .* (valvesetpoints - 1) == 0);
     for k = 1:predictionhorizon + 1
         opti.subject_to(50 * valvesetpoints(k) >= watersetpoints(k));
@@ -421,55 +332,21 @@ if(codegeneration)
     % Set objective
     opti.minimize(J);
 
-solver_options = struct();
-solver_options.ipopt.print_level = 0;      % Suppress IPOPT console output
-solver_options.ipopt.file_print_level = 0; % Suppress IPOPT file output
-solver_options.ipopt.sb = 'yes';           % suppress banner
-solver_options.print_time = false;         % Suppress CasADi timing information
-opti.solver('ipopt',solver_options);
-
-
 opti.set_initial(watersetpoints, 20 * ones(predictionhorizon + 1, 1));
 opti.set_initial(valvesetpoints, 0.5 * ones(predictionhorizon + 1, 1));
 opti.set_initial(states_tfloor, 20 * ones(predictionhorizon + 1, 1));
 opti.set_initial(states_tair, 20 * ones(predictionhorizon + 1, 1));
 
-% Create CasADi function for C code generation
-c_function = opti.to_function('optimal_control', {state, outdoortemp, setpoint}, {watersetpoints(1), valvesetpoints(1)});
+solver_options = struct();
+solver_options.ipopt.print_level = 5;
+solver_options.ipopt.file_print_level = 5;
+solver_options.print_time = true;
+opti.solver('ipopt',solver_options);
 
-% Set options for C code generation, including main and verbose
-opts = struct();
-opts.main = true;       % Include a main function
-opts.verbose = true;    % Display verbose output during code generation
-opts.with_header=false;
-
-% Generate C code with the specified options
-c_function.generate('optimal_control.c', opts);
-
-% compile c-code
-DIR=GlobalOptions.getCasadiPath();
-str_include = GlobalOptions.getCasadiIncludePath();
-str_compile=strcat('gcc -L',DIR,' -Wl,-rpath,',DIR,' -I',str_include,' optimal_control.c -lm -lipopt -o optimal_control')
-
-keyboard
-
-%str_compile=strcat('gcc -L',DIR,' -I',str_include,' optimal_control.c -lm -lipopt -o optimal_control')
-system(str_compile)
-
-
-
-% test the compiled code
-state_value = [15; 15];  % Example values for state
-outdoortemp_value = 6.0;   % Example value for outdoor temperature
-setpoint_value = 21.0;      % Example value for the setpoint
-
-
-
-% Set parameter values in the Opti instance
-
-opti.set_value(state, state_value);
-opti.set_value(outdoortemp, outdoortemp_value);
-opti.set_value(setpoint, setpoint_value);
+%give a value to opti parameters for simulating result using casadi
+opti.set_value(state_init, state);
+opti.set_value(outdoortemp_opti, outdoortemp);
+opti.set_value(setpoint_opti, setpoint);
 
 solution = opti.solve();
 optimized_watersetpoints = solution.value(watersetpoints);
@@ -477,18 +354,64 @@ optimized_valvesetpoints = solution.value(valvesetpoints);
 optimized_tfloor = solution.value(states_tfloor);
 optimized_tair = solution.value(states_tair);
 
-keyboard
+%keyboard
 
-% Prepare the input as a string
-input_string = sprintf('%f\n%f\n%f\n%f\n', state_value(1), state_value(2),outdoortemp_value,setpoint_value);
+if(codegeneration)
 
-% Use pipes to pass input
-command = sprintf('echo "%s" | ./optimal_control optimal_control', input_string);
-[status, output] = system(command);
+  solver_options = struct();
+  solver_options.ipopt.print_level = 0;      % Suppress IPOPT console output
+  solver_options.ipopt.file_print_level = 0; % Suppress IPOPT file output
+  solver_options.ipopt.sb = 'yes';           % suppress banner
+  solver_options.print_time = false;         % Suppress CasADi timing information
+  opti.solver('ipopt',solver_options);
 
+  % Create CasADi function for C code generation: inputs (opti parmaeters) in first part, outputs in second part
+  c_function = opti.to_function('optimal_control', {state_init, outdoortemp_opti, setpoint_opti}, {watersetpoints(1), valvesetpoints(1)});
+
+  % Set options for C code generation, including main and verbose
+  opts = struct();
+  opts.main = true;       % Include a main function
+  opts.verbose = true;
+  opts.with_header=false; % I don't know, maybe
+
+  % Generate C code with the specified options
+  c_function.generate('optimal_control.c', opts);
+
+  % compile c-code
+  DIR=GlobalOptions.getCasadiPath();
+  str_include = GlobalOptions.getCasadiIncludePath();
+  str_compile=strcat('gcc -L',DIR,' -Wl,-rpath,',DIR,' -I',str_include,' optimal_control.c -lm -lipopt -o optimal_control')
+  %str_compile=strcat('gcc -L',DIR,' -I',str_include,' optimal_control.c -lm -lipopt -o optimal_control')
+  system(str_compile)
+
+  % test the compiled code
+  % state_value = [15; 15];  % Example values for state
+  % outdoortemp_value = 6.0;   % Example value for outdoor temperature
+  % setpoint_value = 21.0;      % Example value for the setpoint
+  % Prepare the input as a string
+  input_string = sprintf('%f\n%f\n%f\n%f\n', state(1), state(2),outdoortemp,setpoint);
+
+  % Use pipes to pass input
+  command = sprintf('echo "%s" | ./optimal_control optimal_control', input_string);
+  [status, output] = system(command);
+
+  %compare outputs with octave-casadi
+  optimalvalues_compiledcode = str2num(output);
+
+  check1=abs(optimalvalues_compiledcode(1)-optimized_watersetpoints(1))<1e-4;
+  check2=abs(optimalvalues_compiledcode(2)-optimized_valvesetpoints(1))<1e-4;
+
+  if (check1 & check2)
+    display('compiled c-code working successfully !!')
+  else
+    display(check1)
+    display(check2)
+    error('compiled c-code doesn not produce correct result')
+  end
 
 end
 
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 % plot variables
