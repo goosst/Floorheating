@@ -44,17 +44,34 @@ display('c-code has been running')
 display(['solved in ',num2str(ELAPSED_TIME),' seconds'])
 display(output)
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%55
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % compile integrator / observer code
 display('compiling c-code observer / integrator ')
 
 %  str_compile=strcat('gcc -L',DIR,' -Wl,-rpath,',DIR,' -I',str_include,' integrator_c_code.c -lm -lipopt -o integrator_c_code')
   str_compile=strcat('gcc -I',str_include,' integrator_c_code.c -lm -lipopt -o integrator_c_code')
-
   system(str_compile)
 
+  %Test compiled code
   % Prepare the input as a string
-  input_string = sprintf('%f\n', [state;parameters;controlinputs]);
+  watertempsetp=35;
+  roomairtemp=18;
+  valve_living=1;
+  controlinputs=[watertempsetp;outdoortemp_value;roomairtemp;valve_living];
+
+  %plant model parameters
+  mCfloor = 3.1542e+06;
+  mCair = 6.1871e+06;
+  hair= 3.1215e+02;
+  hisol= 5.1943e+01;
+  kwfl= 4.0000e+02;
+
+  %observer correction parameters
+  L1 = 5.4348e-03
+  L2 = 2.0929e-03
+  parameters=[mCfloor;mCair;hair;hisol;kwfl;L1;L2];
+
+  input_string = sprintf('%f\n', [state_value;parameters;controlinputs]);
 
   % Use pipes to pass input
   command = sprintf('echo "%s" | ./integrator_c_code intg', input_string);
