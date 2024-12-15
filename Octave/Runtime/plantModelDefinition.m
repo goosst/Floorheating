@@ -44,8 +44,14 @@ params=[params;L1;L2];
 %rhs=[(1/(1+exp(-6*(twatersetp-5)))*kwfl*valve*twatersetp+L1*mCfloor*tairmeas+(-1/(1+exp(-6*(twatersetp-5)))*kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
 %(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
 
-rhs=[(sigmoid(twatersetp)*kwfl*valve*twatersetp+L1*mCfloor*tairmeas-(sigmoid(twatersetp)*kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
-(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
+%rhs=[(sigmoid(twatersetp)*kwfl*valve*twatersetp+L1*mCfloor*tairmeas-(sigmoid(twatersetp)*kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
+%(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
+
+%rhs=[(kwfl*valve*twatersetp+L1*mCfloor*tairmeas-(kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
+%(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
+
+rhs=[(kwfl*valve*twatersetp)/mCfloor+((-kwfl*valve-hair)*tfloor)/mCfloor+L1*(tairmeas-tair)+(hair*tair)/mCfloor;...
+(hisol*toutside)/mCair+(hair*tfloor)/mCair+L2*(tairmeas-tair)+((-hisol-hair)*tair)/mCair];
 
 % casadi stuff
 ode = struct;
@@ -62,7 +68,7 @@ integrator_opts = struct('tf', Ts);  % tf option
 merged_opts = merge_structs(integrator_opts, opts);
 intg = integrator('intg', 'rk', ode, merged_opts);
 
-%%%%%%%%%%%%%%%%%%%% model without observer
+%%%%%%%%%%%%%%%%%%%% model without observer %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%55
 
 % control inputs, measurement added for observer
 twatersetp = MX.sym('twatersetp');
@@ -78,6 +84,7 @@ hisol= MX.sym('hisol');
 kwfl= MX.sym('kwfl');
 params=[mCfloor;mCair;hair;hisol;kwfl];
 
+
 %rhs=[(1/(1+exp(-6*(twatersetp-5)))*kwfl*twatersetp+L1*mCfloor*tairmeas+(-1/(1+exp(-6*(twatersetp-5)))*kwfl-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
 %(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
 
@@ -86,6 +93,10 @@ params=[mCfloor;mCair;hair;hisol;kwfl];
 
 rhs = [1/mCfloor*(kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
 1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
+
+
+%rhs=[(kwfl*twatersetp+(kwfl-hair)*tfloor+(hair)*tairmeas)/mCfloor;...
+%(hisol*toutside+hair*tfloor+(-hisol-hair)*tair)/mCair];
 
 % casadi stuff
 ode1 = struct;

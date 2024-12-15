@@ -1,10 +1,12 @@
 function setpoint=OptimalInput(ode,intg,model_params,state,outdoortemp,setpoint,predictionhorizon,simulationhorizon)
 
+codegeneration=true; %only possible when using multiple_shooting_opticlass
+
+
 % select optimization method
 %selected_method='single_shooting';
 %selected_method='multiple_shooting';
 selected_method='multiple_shooting_opticlass';
-codegeneration=true; %only possible when using multiple_shooting_opticlass
 
 
 % penalty factors cost function
@@ -15,13 +17,12 @@ penalty_changevalve=10^(-4);
 
 
 
-% Control vector to be optimized
-watersetpoints = MX.sym('watersetpoints',predictionhorizon+1,1);
-valvesetpoints = MX.sym('valvesetpoints',predictionhorizon+1,1);
 initstate=state;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%watersetpoints = MX.sym('watersetpoints',predictionhorizon+1,1);
+%valvesetpoints = MX.sym('valvesetpoints',predictionhorizon+1,1);
 %if strcmp(selected_method,'single_shooting')
 %  % Create the cost function
 %  J = 0;
@@ -443,7 +444,7 @@ grid minor
 
 linkaxes ([hax1, hax2,hax3],"x");
 
-keyboard
+%keyboard
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
