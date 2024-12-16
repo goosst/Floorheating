@@ -1,4 +1,4 @@
-function setpoint=OptimalInput(ode,intg,model_params,state,outdoortemp,setpoint,predictionhorizon,simulationhorizon)
+function setpoint=OptimalInput(ode,intg,model_params,state,outdoortemp,airtemp_setpoint,predictionhorizon,simulationhorizon)
 
 codegeneration=true; %only possible when using multiple_shooting_opticlass
 
@@ -146,7 +146,7 @@ for k = 1:predictionhorizon
     ubg = {ubg{:}, [0; 0]};
 
     % Accumulate cost
-    J = J + (states_tair(k) - setpoint)^2 + ...
+    J = J + (states_tair(k) - airtemp_setpoint)^2 + ...
     penalty_watertemp*watersetpoints(k)+ ...
     penalty_valve*valvesetpoints(k)*watersetpoints(k)+ ...
     penalty_changewater*(watersetpoints(k)-watersetpoints(k+1))^2+ ...
@@ -162,7 +162,7 @@ current_state = [states_tfloor(end); states_tair(end)];
 for k = 1:simulationhorizon
     result = intg('x0', current_state, 'u', [watersetpoint_final; outdoortemp; valvesetpoint_final], 'p', model_params);
     current_state = result.xf;
-    J = J + (current_state(2) - setpoint)^2 + ...
+    J = J + (current_state(2) - airtemp_setpoint)^2 + ...
     penalty_watertemp*watersetpoint_final+ ...
     penalty_valve*valvesetpoint_final;
 end
@@ -311,7 +311,7 @@ if strcmp(selected_method,'multiple_shooting_opticlass')
          result = intg('x0', current_state, 'u', [watersetpoint_final; outdoortemp_opti; valvesetpoint_final], 'p', model_params);
          current_state = result.xf;
 
-         J = J + (current_state(2) - setpoint)^2 + ...
+         J = J + (current_state(2) - setpoint_opti)^2 + ...
              penalty_watertemp * watersetpoint_final + ...
              penalty_valve * valvesetpoint_final;
      end
@@ -320,12 +320,17 @@ if strcmp(selected_method,'multiple_shooting_opticlass')
     opti.subject_to(0 <= watersetpoints <= 35);
     opti.subject_to(0 <= valvesetpoints <= 1);
 
+    % watersetpoint cannot be below 15 degrees for my gas boiler
+    opti.subject_to((watersetpoints<2) .* (watersetpoints>=15) == 0);
+
     % Add state bounds
-    opti.subject_to(0 <= states_tfloor <= 40);
+    opti.subject_to(0 <= states_tfloor <= 45);
     opti.subject_to(0 <= states_tair <= 40);
 
     % Binary valve constraints, valve can only be open or closed
     opti.subject_to(valvesetpoints .* (valvesetpoints - 1) == 0);
+
+    % if valve is open bring watersetpoint to zero
     for k = 1:predictionhorizon + 1
         opti.subject_to(50 * valvesetpoints(k) >= watersetpoints(k));
     end
@@ -347,13 +352,17 @@ opti.solver('ipopt',solver_options);
 %give a value to opti parameters for simulating result using casadi
 opti.set_value(state_init, state);
 opti.set_value(outdoortemp_opti, outdoortemp);
-opti.set_value(setpoint_opti, setpoint);
+opti.set_value(setpoint_opti, airtemp_setpoint);
 
 solution = opti.solve();
 optimized_watersetpoints = solution.value(watersetpoints);
 optimized_valvesetpoints = solution.value(valvesetpoints);
 optimized_tfloor = solution.value(states_tfloor);
 optimized_tair = solution.value(states_tair);
+
+setpoint={};
+setpoint.watersetp=optimized_watersetpoints(1);
+setpoint.valvesetp=optimized_valvesetpoints(1);
 
 %keyboard
 
@@ -390,7 +399,7 @@ if(codegeneration)
   % outdoortemp_value = 6.0;   % Example value for outdoor temperature
   % setpoint_value = 21.0;      % Example value for the setpoint
   % Prepare the input as a string
-  input_string = sprintf('%f\n%f\n%f\n%f\n', state(1), state(2),outdoortemp,setpoint);
+  input_string = sprintf('%f\n%f\n%f\n%f\n', state(1), state(2),outdoortemp,airtemp_setpoint);
 
   % Use pipes to pass input
   command = sprintf('echo "%s" | ./optimal_control optimal_control', input_string);
@@ -419,14 +428,14 @@ end
 if true
 figure(1)
 hold on
-hax1=subplot(3,1,1)
+hax1=subplot(3,1,1);
 hold on
 plot(optimized_watersetpoints,'*','DisplayName','optimal water setpoint')
 pause(1)
 legend
 grid minor
 
-hax3=subplot(3,1,2)
+hax3=subplot(3,1,2);
 hold on
 plot(optimized_tfloor,'*','DisplayName','floor temp prediction')
 pause(1)
@@ -435,7 +444,7 @@ pause(1)
 legend
 grid minor
 
-hax2=subplot(3,1,3)
+hax2=subplot(3,1,3);
 pause(1)
 plot(optimized_valvesetpoints,'*','DisplayName','optimal valve setpoint')
 pause(1)
@@ -444,7 +453,7 @@ grid minor
 
 linkaxes ([hax1, hax2,hax3],"x");
 
-%keyboard
+keyboard
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
