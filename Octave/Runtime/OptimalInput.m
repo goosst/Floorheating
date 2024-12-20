@@ -15,6 +15,11 @@ penalty_valve=10^(-3);
 penalty_changewater=10^(-4);
 penalty_changevalve=10^(-4);
 
+%penalty_watertemp=0;
+%penalty_valve=0;
+%penalty_changewater=0;
+%penalty_changevalve=0;
+
 
 
 initstate=state;
@@ -321,7 +326,8 @@ if strcmp(selected_method,'multiple_shooting_opticlass')
     opti.subject_to(0 <= valvesetpoints <= 1);
 
     % watersetpoint cannot be below 15 degrees for my gas boiler
-    opti.subject_to((watersetpoints<2) .* (watersetpoints>=15) == 0);
+    % for some reason, adding this makes the whole problem suboptimal
+%    opti.subject_to((watersetpoints<=2) .*(watersetpoints>=15) == 0);
 
     % Add state bounds
     opti.subject_to(0 <= states_tfloor <= 45);
@@ -345,7 +351,7 @@ opti.set_initial(states_tair, 20 * ones(predictionhorizon + 1, 1));
 
 solver_options = struct();
 solver_options.ipopt.print_level = 5;
-solver_options.ipopt.file_print_level = 5;
+solver_options.ipopt.file_print_level = 0;
 solver_options.print_time = true;
 opti.solver('ipopt',solver_options);
 
@@ -373,10 +379,14 @@ if(codegeneration)
   solver_options.ipopt.file_print_level = 0; % Suppress IPOPT file output
   solver_options.ipopt.sb = 'yes';           % suppress banner
   solver_options.print_time = false;         % Suppress CasADi timing information
+  solver_options.error_on_fail=true;
   opti.solver('ipopt',solver_options);
 
   % Create CasADi function for C code generation: inputs (opti parmaeters) in first part, outputs in second part
-  c_function = opti.to_function('optimal_control', {state_init, outdoortemp_opti, setpoint_opti}, {watersetpoints(1), valvesetpoints(1)});
+%  c_function = opti.to_function('optimal_control', {state_init, outdoortemp_opti, setpoint_opti}, {watersetpoints(1), valvesetpoints(1)});
+    c_function = opti.to_function('optimal_control', {state_init, outdoortemp_opti, setpoint_opti}, {watersetpoints(1), valvesetpoints(1)});
+
+
 
   % Set options for C code generation, including main and verbose
   opts = struct();
@@ -427,6 +437,8 @@ end
 % plot variables
 if true
 figure(1)
+clf
+
 hold on
 hax1=subplot(3,1,1);
 hold on

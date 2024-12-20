@@ -10,7 +10,7 @@ end
 
 
   function y = sigmoid(x)
-    y=1/(1+exp(-6*(x-5)));
+    y=1/(1+exp(-6*(x-15)));
   end
 
 % Add states
@@ -50,7 +50,7 @@ params=[params;L1;L2];
 %rhs=[(kwfl*valve*twatersetp+L1*mCfloor*tairmeas-(kwfl*valve-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
 %(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
 
-rhs=[(kwfl*valve*twatersetp)/mCfloor+((-kwfl*valve-hair)*tfloor)/mCfloor+L1*(tairmeas-tair)+(hair*tair)/mCfloor;...
+rhs=[(kwfl*valve*twatersetp*sigmoid(twatersetp))/mCfloor+((-kwfl*valve*sigmoid(twatersetp)-hair)*tfloor)/mCfloor+L1*(tairmeas-tair)+(hair*tair)/mCfloor;...
 (hisol*toutside)/mCair+(hair*tfloor)/mCair+L2*(tairmeas-tair)+((-hisol-hair)*tair)/mCair];
 
 % casadi stuff
@@ -84,16 +84,11 @@ hisol= MX.sym('hisol');
 kwfl= MX.sym('kwfl');
 params=[mCfloor;mCair;hair;hisol;kwfl];
 
-
-%rhs=[(1/(1+exp(-6*(twatersetp-5)))*kwfl*twatersetp+L1*mCfloor*tairmeas+(-1/(1+exp(-6*(twatersetp-5)))*kwfl-hair)*tfloor+(hair-L1*mCfloor)*tairmeas)/mCfloor;...
-%(hisol*toutside+L2*mCair*tairmeas+hair*tfloor+(-L2*mCair-hisol-hair)*tair)/mCair];
-
 %rhs = [1/mCfloor*(sigmoid(twatersetp)*kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
 %       1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
 
-rhs = [1/mCfloor*(kwfl*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
+rhs = [1/mCfloor*(kwfl*sigmoid(twatersetp)*valve*(twatersetp-tfloor)+hair*(tair-tfloor));...
 1/mCair*(hair*(tfloor-tair)+hisol*(toutside-tair))];
-
 
 %rhs=[(kwfl*twatersetp+(kwfl-hair)*tfloor+(hair)*tairmeas)/mCfloor;...
 %(hisol*toutside+hair*tfloor+(-hisol-hair)*tair)/mCair];
