@@ -29,25 +29,33 @@ end
 url=strcat('http://',address_hass,'/api/states/sensor.date_time_iso');
 options = weboptions('HeaderFields',{'Authorization' ['Bearer ' auth_token]});
 full_url = [url, "&minimal_response"];
-
 data = webread(url, options);
+if isempty(data)
+  entity_data='error';
+  hass_time='error';
+  most_recent_states='unkown';
+  return
+end
 data = jsondecode (data);
 hass_time = data.state;
 
+
 % get actual data from entity
 base_url = strcat("http://",address_hass,"/api/history/period/");
-
 end_time = hass_time;%strftime("%Y-%m-%dT%H:%M:%S", localtime(hass_time));          % Current time
 t = datenum(hass_time, "yyyy-mm-ddTHH:MM:SS");
 start_time=datestr(t-hours_of_data/24, 'yyyy-mm-ddTHH:MM:SS');
-
 encoded_end_time= urlencode(end_time);
 encoded_start_time = urlencode(start_time);
 
 full_url = [base_url, encoded_start_time,"?end_time=", encoded_end_time, "&filter_entity_id=", entity_id,"&minimal_response"];
-
 options = weboptions('HeaderFields',{'Authorization' ['Bearer ' auth_token]});
 data = webread(full_url, options);
+if isempty(data)
+  entity_data='error';
+  most_recent_states='error';
+  return
+end
 data = jsondecode (data);
 
 % Initialize a container for results
