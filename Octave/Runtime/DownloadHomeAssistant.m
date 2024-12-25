@@ -23,109 +23,117 @@ hours_of_data=1;
             encoded = [encoded, sprintf('%%%02X', double(c))];
         end
     end
-end
+  end
 
-# get latest time from home assistant (to avoid timezone/utc crap)
-url=strcat('http://',address_hass,'/api/states/sensor.date_time_iso');
-options = weboptions('HeaderFields',{'Authorization' ['Bearer ' auth_token]});
-full_url = [url, "&minimal_response"];
-data = webread(url, options);
-if isempty(data)
-  entity_data='error';
-  hass_time='error';
-  most_recent_states='unkown';
-  return
-end
-data = jsondecode (data);
-hass_time = data.state;
+  % get latest time from home assistant (to avoid timezone/utc crap)
+  url=strcat('http://',address_hass,'/api/states/sensor.date_time_iso');
+  options = weboptions('HeaderFields',{'Authorization' ['Bearer ' auth_token]});
+  full_url = [url, "&minimal_response"];
+  data = webread(url, options);
+  if isempty(data)
+    entity_data='error';
+    hass_time='error';
+    most_recent_states='unkown';
+    return
+  end
+  data = jsondecode(data);
+  hass_time = data.state;
+
+  % get actual data from entity
+  base_url = strcat("http://",address_hass,"/api/history/period/");
+  end_time = hass_time;
+  t = datenum(hass_time, "yyyy-mm-ddTHH:MM:SS");
+  start_time=datestr(t-hours_of_data/24, 'yyyy-mm-ddTHH:MM:SS');
+  encoded_end_time= urlencode(end_time);
+  encoded_start_time = urlencode(start_time);
+
+  full_url = [base_url, encoded_start_time,"?end_time=", encoded_end_time, "&filter_entity_id=", entity_id,"&minimal_response"];
 
 
-% get actual data from entity
-base_url = strcat("http://",address_hass,"/api/history/period/");
-end_time = hass_time;%strftime("%Y-%m-%dT%H:%M:%S", localtime(hass_time));          % Current time
-t = datenum(hass_time, "yyyy-mm-ddTHH:MM:SS");
-start_time=datestr(t-hours_of_data/24, 'yyyy-mm-ddTHH:MM:SS');
-encoded_end_time= urlencode(end_time);
-encoded_start_time = urlencode(start_time);
+  options = weboptions('HeaderFields',{'Authorization' ['Bearer ' auth_token]});
+  data = webread(full_url, options);
 
-full_url = [base_url, encoded_start_time,"?end_time=", encoded_end_time, "&filter_entity_id=", entity_id,"&minimal_response"];
-options = weboptions('HeaderFields',{'Authorization' ['Bearer ' auth_token]});
-data = webread(full_url, options);
-if isempty(data)
-  entity_data='error';
-  most_recent_states='error';
-  return
-end
-data = jsondecode (data);
+  if isempty(data)
+    entity_data='error';
+    most_recent_states='error';
+    diary('debug_downloadhass.txt');
+    display('empty data')
+    display(full_url);
+    display(data);
+    diary off
+    return
+  end
+  data = jsondecode(data);
 
-% Initialize a container for results
-entity_data = struct(); % To store data for each entity_id
+  % Initialize a container for results
+  entity_data = struct();
 
-% Loop through each set of data
-for i = 1:numel(data)
-    current = data{i}; % Current data block
-    last_entity_id = ''; % Initialize last entity ID tracker
+  % Function to process a single entity's data
+  function processEntityData(item)
+    if isfield(item, 'entity_id') && isfield(item, 'state') && isfield(item, 'last_changed')
+        orig_entity_id = item.entity_id;
+        % Replace dots with underscores for valid field name
+        entity_id = strrep(orig_entity_id, '.', '_');
+        state = item.state;
+        time = item.last_changed;
 
-    if iscell(current)
-        % Loop through nested structures in a cell array
-        for j = 1:numel(current)
-            item = current{j};
-
-            % Extract or reuse entity_id
-            if isfield(item, 'entity_id')
-                entity_id = item.entity_id;
-                last_entity_id = entity_id; % Update tracker
-            else
-                entity_id = last_entity_id; % Use previous entity_id
-            end
-
-            % Extract state and last_changed
-            if isfield(item, 'state') && isfield(item, 'last_changed')
-                state = item.state;
-                time = item.last_changed;
-
-                % Append data to the corresponding entity_id
-                if ~isfield(entity_data, entity_id)
-                    entity_data.(entity_id) = []; % Initialize if not already exists
-                end
-
-                entity_data.(entity_id) = [entity_data.(entity_id); {time, state}];
-            end
+        % Initialize if not already exists
+        if ~isfield(entity_data, entity_id)
+            entity_data.(entity_id) = {};
         end
-    else
-        % Handle non-nested structures
-        item = current;
-        if isfield(item, 'entity_id') && isfield(item, 'state') && isfield(item, 'last_changed')
-            entity_id = item.entity_id;
-            state = item.state;
-            time = item.last_changed;
 
-            % Append data
-            if ~isfield(entity_data, entity_id)
-                entity_data.(entity_id) = [];
+        % Append new data
+        entity_data.(entity_id){end+1, 1} = time;
+        entity_data.(entity_id){end, 2} = state;
+    end
+  end
+
+  % Handle different data structures
+  if iscell(data)
+    % Handle cell array structure (data2 format)
+    for i = 1:numel(data)
+        current = data{i};
+        if iscell(current)
+            for j = 1:numel(current)
+                processEntityData(current{j});
             end
-            entity_data.(entity_id) = [entity_data.(entity_id); {time, state}];
+        else
+            processEntityData(current);
         end
     end
-end
-
-% only most recent state
-entity_ids = fieldnames(entity_data);
-for i = 1:numel(entity_ids)
-    entity_id = entity_ids{i};
-    data_array = entity_data.(entity_id); % Extract time-state pairs
-    % Get the last entry (most recent)
-    data_reformat=cell2mat(data_array(end, 2));
-    if strcmp(data_reformat,'on')
-      most_recent_states.(entity_id) = 1;
-    elseif strcmp(data_reformat,'off')
-      most_recent_states.(entity_id) = 0;
-    else
-      most_recent_states.(entity_id) = str2num(data_reformat);
+  else
+    % Handle non-cell array structure (data1 format)
+    for i = 1:numel(data)
+        current = data(i);
+        if isstruct(current) && numel(current) == 1
+            % Process single entity data
+            item = current(1);
+            if isstruct(item)
+                processEntityData(item);
+            end
+        end
     end
+  end
 
+  % Process most recent states
+  entity_ids = fieldnames(entity_data);
+  most_recent_states = struct();
+
+  for i = 1:numel(entity_ids)
+      entity_id = entity_ids{i};
+      data_array = entity_data.(entity_id);
+
+      if ~isempty(data_array)
+          data_reformat = data_array{end, 2};
+
+          % Convert the state to appropriate format
+          if strcmp(data_reformat, 'on')
+              most_recent_states.(entity_id) = 1;
+          elseif strcmp(data_reformat, 'off')
+              most_recent_states.(entity_id) = 0;
+          else
+              most_recent_states.(entity_id) = str2double(data_reformat);
+          end
+      end
+  end
 end
-
-
-end
-
