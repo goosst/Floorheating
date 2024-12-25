@@ -50,9 +50,8 @@ if ~execute_compiledinsteadofmatlab
 
 end
 
-firstrun=true;
+firstrun=true;updatehass=false;
 starttime = time();  %time in seconds
-k=0;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%% the loop %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -61,17 +60,33 @@ while true
   % a crappy time scheduler, don't know if octave has better options
   pause(1);
   currenttime = time();
+
+
+  % make sure all measurements made it to home assistant before starting the model predictive conroller, this can be done in advance
+  % it's thermal and slow, there are no hard realtime constraints
+  if ((currenttime-starttime>=Ts-60 || firstrun) && updatehass==false)
+    PostHomeAssistant(address_hass,auth_token,'shell_command.read_ebus',0);
+    updatehass=true;
+  end
+
+
+  % Model predictive control loop
    if (currenttime-starttime>=Ts || firstrun)
 
   starttime= time();
+  updatehass=false;
+
   fid=fopen(logfile, 'a');
 
 
   clc
-  disp(['run',num2str(k)])
-  fprintf(fid, '%s: %s\n', datestr(now, 0), ['run',num2str(k)]);
+  disp(['run ', datestr(now, 0)])
 
-  k=k+1;
+%  k=k+1;
+
+  % first check all sensors are up to date
+
+
   % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % get sensor / input data from home assistant
 %  entity_id='sensor.temperature_flow_radiator,sensor.temperature_living,sensor.temperature_buiten_vaillant,sensor.temperature_setpoint_living,switch.collector';
@@ -168,8 +183,6 @@ end
   % convert watersetpoint to thermostat setpoints
   heat_line=0.5;
   ThermostatSetp=WaterSetpointToThermostatSetpoint(setpoint.watersetp,outdoortemp,heat_line);
-
-%  keyboard
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   %%%%%%%%%%%%%%%% apply optimal setpoints
