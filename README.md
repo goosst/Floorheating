@@ -1,19 +1,19 @@
-# 1 Sentence summary
-Control of floor heating in multiple rooms using a model predictive control approach
+# One-sentence-summary
+Control of underfloor heating in multiple rooms using a model predictive control approach
 
 # Why
 
 1. I want a floor heating which can heat up quickly and keeps my temperature relatively stable.
 Standard control of heating systems seems to me mediocre at best, especially for heating systems with higher thermal inertia like underfloor heating.
 In my gas heater I can choose between:
-   * heating up the room quickly, completely overshooting its desired temperature, followed by some period of long cooling which doesn't feel enjoyable etc.
-   * heating up slowly and waiting forever till a temperature is reached.
+   * heating up the room quickly, followed by completely overshooting its desired temperature, followed by some period of long cooling which doesn't feel enjoyable etc.
+   * heating up slowly and waiting forever till a room temperature is reached.
 
-    To me it's clear the approaches from (gas) manufacturers using heat curves probably exist from ancient days where controls engineering was a niche and microcontrollers were barely available. But we don't live in the 90's anymore ... .
+    To me it's clear the approaches from (gas) heater manufacturers using heat curves probably exist from ancient days where controls engineering was a niche and microcontrollers were barely available. But we don't live in the 90's anymore ... .
     More as a rant but people claiming underfloor heating should always be kept on, are just waisting useless energy and/or are lazy to tune their heating systems right.
 
-2. After installation of underfloor heating I wanted to be able to control individual room temperatures out of 1 water collector. This while guaranteeing the valve positions of the individual floor circuits don't create conflicts with the pump / heating requests to the gas boiler. e.g. Always 1 circuit should allow water to flow when requesting heat from the boiler.
-3. Unfortunately proportional valves for underfloor heating don't seem to exist today (?), valves are only on/off. 
+2. After installation of underfloor heating I wanted to be able to control individual room temperatures out of 1 water collector. This while guaranteeing the valve positions of the individual floor circuits don't create conflicts with the pump / heating requests to the gas boiler. e.g. Always 1 circuit should allow water to flow when requesting heat from the boiler. Also valves should be closed to avoid waisting energy if no water is flowing etc.
+3. Unfortunately proportional valves for underfloor heating don't seem to exist today (?), valves are only on/off. This makes things more complicated.
   
 
 # What 
