@@ -1,4 +1,4 @@
-# One-sentence-summary
+# One sentence summary
 Control of underfloor heating in multiple rooms using a model predictive control approach
 
 # Why
@@ -17,22 +17,36 @@ In my gas heater I can choose between:
   
 
 # What 
-* Model predictive control is very suited to solve the problem: 
-  * it works elegantly with constraints (limited valve-boiler combinations), multiple inputs, coupled systems (1 water temperature for all).
-  I'd rather avoid creating of a bunch of if-else-logic constructions where always some corner case is missed and is harder to scale to multiple rooms.
+
+## Model predictive control
+
+![MPC workflow](WorkFlow.png)
+
+* Controls logic using model predictive control. Model predictive control is very suited to solve the problem: 
+  * it works elegantly with constraints (define allowed valve-boiler combinations), multiple inputs (valves & boiler), coupled systems (1 water temperature for all rooms).
+  I'd rather avoid creating of a bunch of if-else-logic constructions where some corner cases get easily missed and is harder to scale to multiple rooms.
   * allows to look ahead and see when you will reach a certain air temperature if the floor was warm for a while.
-* Casadi is used as optimization tool
-  * Highly flexible tool which allows to generate c-code to run on most single board platforms (without requiring typical  pc-tools)
+* Casadi is used as optimization tool to solve the cost function [https://web.casadi.org/]:
+  * Highly flexible tool which allows to generate c-code, this code runs on most single board platforms (without requiring typical pc-tools being installed)
   * The design of the model predictive control is done in the free tool octave
+  
+## Interfaces with hardware
+
+![Interfaces](Interfaces.png)
+
+
 * Beside octave & casadi, the controller interfaces with:
-  * home assistant to get all relevant sensor data and set the setpoints (room temperatures, thermostat setpoints, outdoor temp, valve positions, ... )
+  * home assistant [https://www.home-assistant.io/] to get all relevant sensor data and set the setpoints (room temperatures, thermostat setpoints, outdoor temp, valve positions, ... )
   * The ebus project [https://ebusd.eu/] is used to - also through home assistant - interface with the gas heater and its according thermostats. It allows to send "virtual" setpoints to the thermostat - i.e. setting the thermostat temperature every x minutes. This allows to get the desired water temperature out of the gas heater and become quite independent from any manufacturer controls ... . No weird hacking of thermostats or boiler is needed, only an extra device plugged into the communication bus of the heater.
 * Model predictive control relies to have a model of your environment. This is however - deliberatly - kept very simple (two node thermal network with an observer to correct model inaccuracies).
 
 # Status
-Running now for quite some weeks.
+Running for quite some weeks in one room.
   
-
-
+To do:
+- [ ] extend to multiple rooms
+- [ ] documentation
+- [ ] potential autotuning to automatically learn a model of a room
+- [ ] Increase accuracy of relation between water temperature and thermostat setpoint 
 
 
