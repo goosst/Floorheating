@@ -14,15 +14,15 @@ In my gas heater I can choose between:
 
 2. After installation of underfloor heating I wanted to be able to control individual room temperatures out of 1 water collector. This while guaranteeing the valve positions of the individual floor circuits don't create conflicts with the pump / heating requests to the gas boiler. e.g. Always 1 circuit should allow water to flow when requesting heat from the boiler. Also valves should be closed to avoid waisting energy if no water is flowing etc.
 3. Unfortunately proportional valves for underfloor heating don't seem to exist today (?), valves are only on/off. This makes things more complicated when doing multi-room control.
-  
 
-# What 
+
+# What
 
 ## Model predictive control
 
 ![MPC workflow](WorkFlow.png)
 
-* Controls logic using model predictive control. Model predictive control is very suited to solve the problem: 
+* Controls logic using model predictive control. Model predictive control is very suited to solve the problem:
   * it works elegantly with constraints (definition of allowed valve-boiler combinations, multiple inputs (valves & boiler), coupled systems (1 water temperature for all rooms).
   I'd rather avoid creating of a bunch of if-else-logic constructions where some corner cases get easily missed and is harder to scale to multiple rooms.
   Optimization algorithms can do this better than myself :).
@@ -30,7 +30,7 @@ In my gas heater I can choose between:
 * Casadi is used as optimization tool to solve the cost function [https://web.casadi.org/]:
   * Highly flexible tool which allows to generate c-code, this c-code runs on most single board platforms (without requiring typical pc-tools being installed or having to rely on powerful computers)
   * The design of the model predictive control is done in the free tool octave
-  
+
 ## Interfaces with hardware
 
 ![Interfaces](Interfaces.png)
@@ -42,12 +42,10 @@ In my gas heater I can choose between:
 * Model predictive control relies to have a model of your environment. This is however - deliberatly - kept very simple (two node thermal network with an observer to correct model inaccuracies).
 
 # Status
-Running for quite some weeks in one room.
-  
 To do:
-- [ ] extend to multiple rooms (being tested now)
+- [x] extend to multiple rooms
+- [ ] Increase accuracy of relation between water temperature and thermostat setpoint
 - [ ] documentation
+- [ ] link with scheduled room temperature (i.e. use future room temp information instead of instant setpoint)
 - [ ] potential autotuning to automatically learn a model of a room
-- [ ] Increase accuracy of relation between water temperature and thermostat setpoint 
-
-
+- [ ] use predictive outdoor information
