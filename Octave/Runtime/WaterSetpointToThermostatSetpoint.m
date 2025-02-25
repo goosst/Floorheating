@@ -1,7 +1,7 @@
 function ThermostatSetp=WaterSetpointToThermostatSetpoint(water_temp,outdoor_temp,heat_line)
 
 % setting vaillant ecotec plus
-% - turn off "binnencompensatie"
+% - turn off "binnencompensatie" on thermostat
 
 
 % heat curve of 0.6 for a target room temperature of 20C
@@ -25,9 +25,7 @@ heat_curve_table.water_temps = [
     33.0, 34.0, 35.0, 36.5, 38.0, 40.0, 42.0, 44.0, 49.0, 54.0;
 ];
 
-watertemp_setp_20C = interp2 (heat_curve_table.heat_lines,heat_curve_table.outdoor_temps,  heat_curve_table.water_temps, heat_line,outdoor_temp,'spline');
+watertemp_setp_20C = interp2(heat_curve_table.heat_lines,heat_curve_table.outdoor_temps,  heat_curve_table.water_temps, heat_line,outdoor_temp,'spline');
 
 % I believe to understand the correction is 5 degrees shifted per degree of thermomstat temperature setpoint compared to 20C
 ThermostatSetp=(water_temp-watertemp_setp_20C)/5+20;
-
-
