@@ -1,3 +1,4 @@
+%% requires following octave,octave-dev, pkg install -forge control
 clc
 clear variables
 close all
@@ -9,11 +10,12 @@ diary on
 addpath('../')
 
 execute_compiledinsteadofmatlab = true; %run copmiled c-code instead of octave / matlab, to generate c-code put this to false
-applysetpoints = true; %send calcaulted outputs (valve, temperatures, ...) to home assistant
+applysetpoints = false; %send calcaulted outputs (valve, temperatures, ...) to home assistant
 
 if ~execute_compiledinsteadofmatlab
     % casadi should not be a dependency if c-code / compiled c-code is used
-    addpath('/home/stijn/Projects/Casadi/casadi-3.6.7-linux64-octave7.3.0')
+%    addpath('/home/stijn/Projects/Casadi/casadi-3.6.7-linux64-octave7.3.0')
+    addpath('/home/stijn/Projects/Casadi/casadi-3.7.2-linux64-octave7.3.0')
     import casadi.*
 else
     %remove all casadi references from path for standalone testing purposes
@@ -159,7 +161,7 @@ while true
         if ~execute_compiledinsteadofmatlab
 
             [most_recent_states, valve_states] = getLatestStates(address_hass, auth_token, entities_valves);
-            setpoint = OptimalControlMultiRoom(ode_no_observer, intg_no_observer, all_model_params_no_observer, state, outdoortemp, airtemp_setpoints, predictionhorizon, simulationhorizon, num_rooms, valve_states);
+            setpoint = OptimalControlMultiRoom(ode_no_observer, intg_no_observer, all_model_params_no_observer, state, outdoortemp, airtemp_setpoints, predictionhorizon, simulationhorizon, num_rooms, valve_states,watertemp_max);
 
             optimized_watersetpoints = setpoint.watersetp;
             optimized_valvesetpoints = setpoint.valvesetp;
@@ -283,7 +285,7 @@ while true
 
         % apply setpoints
         if optimized_watersetpoints(1) > 10
-            ThermostatSetp = WaterSetpointToThermostatSetpoint(optimized_watersetpoints(1), outdoortemp, heat_line);
+            ThermostatSetp = WaterSetpointToThermostatSetpoint(optimized_watersetpoints(1), outdoortemp, heat_line,watertemp_max);
         else
             ThermostatSetp = 0;
         end

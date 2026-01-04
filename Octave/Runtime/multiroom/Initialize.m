@@ -14,6 +14,8 @@ timestep = Ts;
 predictionhorizon = ceil(2.5 * 3600 / Ts); %this is not a parameter in the c-code functions, regenerate c-code if changed
 simulationhorizon = 1; % ceil(0.1 * 3600 / Ts); %additional simulation time after prediction (e.g. inputs kept constant during this time)
 
+watertemp_max=37; %this should be the maximum water temperature set in the boiler, this is a hardcoded parameter in the compiled function ... (could be improved to have as parameter)
+
 % load configurations
 [room_configs, all_model_params_observer, all_model_params_no_observer] = Roomconfig(num_rooms);
 

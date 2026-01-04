@@ -1,4 +1,4 @@
-function ThermostatSetp=WaterSetpointToThermostatSetpoint(water_temp,outdoor_temp,heat_line)
+function ThermostatSetp=WaterSetpointToThermostatSetpoint(water_temp,outdoor_temp,heat_line,watertemp_max)
 
 % setting vaillant ecotec plus
 % - turn off "binnencompensatie" on thermostat
@@ -29,3 +29,9 @@ watertemp_setp_20C = interp2(heat_curve_table.heat_lines,heat_curve_table.outdoo
 
 % I believe to understand the correction is 5 degrees shifted per degree of thermomstat temperature setpoint compared to 20C
 ThermostatSetp=(water_temp-watertemp_setp_20C)/5+20;
+
+% if the maximum temperature of the boiler is requested, add a bit of margin to correct for any conversion errors
+if abs(water_temp>watertemp_max-0.1)
+  ThermostatSetp=ThermostatSetp+2;
+end
+

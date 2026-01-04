@@ -1,4 +1,4 @@
-function setpoint = OptimalControlMultiRoom(ode, intg, model_params, state, outdoortemp, airtemp_setpoints, predictionhorizon, simulationhorizon, num_rooms,valve_states)
+function setpoint = OptimalControlMultiRoom(ode, intg, model_params, state, outdoortemp, airtemp_setpoints, predictionhorizon, simulationhorizon, num_rooms,valve_states,watertemp_max)
     % find optimal setpoints of inputs (valves, water etc.) to control floor heating
     % two iterations of solving have to happen to handle the discrete nature of valves (0 or 1)
     % (or at least I did not find a reliable way to do it in one go with ipopt)
@@ -12,7 +12,6 @@ function setpoint = OptimalControlMultiRoom(ode, intg, model_params, state, outd
     %    penalty_changewater = 10 ^ (-4);
     %    penalty_changevalve = 10 ^ (-4);
 
-    watertemp_max=37;
     penalty_watertemp = 10 ^ (-3);
     penalty_valve = 10 ^ (-3);
     penalty_changewater = 10 ^ (-3);
